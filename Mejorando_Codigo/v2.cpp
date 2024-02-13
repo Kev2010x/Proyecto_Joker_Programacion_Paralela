@@ -1,3 +1,4 @@
+// en proceso de mejora
 #include <iostream>
 #include <cmath>
 #include <thread>
