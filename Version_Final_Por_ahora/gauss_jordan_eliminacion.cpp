@@ -98,7 +98,7 @@ void gaussJordan(float *AB, int n, int poscol) {
 }
 
 int main() {
-    const int n = 100; // Set your matrix size
+    const int n = 500; // Set your matrix size
     srand(static_cast<unsigned>(time(nullptr)));
 
     float *d_AB = new float[(n + 1) * n];
