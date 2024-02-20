@@ -158,24 +158,24 @@ int main() {
     int blocksize = std::min(static_cast<int>(std::thread::hardware_concurrency()), 12);
     int numBlocks = ceil(n / static_cast<float>(blocksize));
 
-    std::cout << "Número de hilos utilizados: " << blocksize << std::endl;
+    std::cout << "Number of threads used: " << blocksize << std::endl;
 
     auto startTime = std::chrono::high_resolution_clock::now();
     gaussJordanParallel(d_AB, n, numBlocks, total_eliminations_paralelo);
     auto endTime = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> parallel_time = endTime - startTime;
 
-    std::cout << "Tiempo Secuencial: " << sequential_time.count() * 1000 << " ms\n";
-    std::cout << "Tiempo Paralelo: " << parallel_time.count() * 1000 << " ms\n";
-    std::cout << "Aceleración: " << sequential_time / parallel_time << "\n";
-    std::cout << "Eficiencia: " << (sequential_time / parallel_time) / blocksize * 100 << "%\n";
+    std::cout << "Sequential Time: " << sequential_time.count() * 1000 << " ms\n";
+    std::cout << "Parallel Time: " << parallel_time.count() * 1000 << " ms\n";
+    std::cout << "Acceleration: " << sequential_time / parallel_time << "\n";
+    std::cout << "Efficiency: " << (sequential_time / parallel_time) / blocksize * 100 << "%\n";
 
     double throughput_secuencial = total_eliminations_secuencial / sequential_time.count();
     double throughput_paralelo = total_eliminations_paralelo / parallel_time.count();
     double latency = 1 / throughput_paralelo;
-    std::cout << "Rendimiento Secuencial: " << throughput_secuencial << " operaciones/segundo\n";
-    std::cout << "Rendimiento Paralelo: " << throughput_paralelo << " operaciones/segundo\n";
-    std::cout << "Latencia: " <<  latency  << " operaciones/segundo\n";
+    std::cout << "Sequential Performance: " << throughput_secuencial << " Operations/Second\n";
+    std::cout << "Parallel Performance: " << throughput_paralelo << " Operations/Second\n";
+    std::cout << "Latency: " <<  latency  << " Operations/Second\n";
     
     return 0;
 }
