@@ -136,7 +136,7 @@ void gaussJordanSecuencial(std::vector<float>& AB, int n, std::atomic<int>& tota
 }
 
 int main() {
-    const int n = 200;
+    const int n = 100;
     srand(static_cast<unsigned>(time(nullptr)));
 
     std::vector<float> d_AB, d_AB_secuencial;
@@ -172,9 +172,10 @@ int main() {
 
     double throughput_secuencial = total_eliminations_secuencial / sequential_time.count();
     double throughput_paralelo = total_eliminations_paralelo / parallel_time.count();
-
+    double latency = 1 / throughput_paralelo;
     std::cout << "Rendimiento Secuencial: " << throughput_secuencial << " operaciones/segundo\n";
     std::cout << "Rendimiento Paralelo: " << throughput_paralelo << " operaciones/segundo\n";
-
+    std::cout << "Latencia: " <<  latency  << " operaciones/segundo\n";
+    
     return 0;
 }
