@@ -1,16 +1,10 @@
 #include <iostream>
-#include <cmath>
 #include <thread>
+#include <cmath>
 #include <vector>
 #include <cstdlib>
 #include <ctime>
 #include <chrono>
-#include <future>
-#include <mutex>
-#include <condition_variable>
-
-std::mutex mutexAB;
-std::condition_variable cv;
 
 void inicializarMatriz(std::vector<float>& matriz, int filas, int columnas) {
     matriz.resize(filas * columnas);
@@ -34,31 +28,18 @@ void eliminacionAdelante(std::vector<float>& AB, int n, int poscol) {
     for (int id = 0; id < n - 1 - poscol; ++id) {
         int pospivot = (n + 2) * poscol;
         int posfinfila = (n + 1) * (poscol + 1);
-        float piv;
+        float piv = AB[pospivot];
 
-        {
-            std::unique_lock<std::mutex> lock(mutexAB);
-            piv = AB[pospivot];
-
-            for (int j = pospivot; j < posfinfila; ++j) {
-                AB[j] /= piv;
-            }
+        for (int j = pospivot; j < posfinfila; ++j) {
+            AB[j] /= piv;
         }
 
         int posfactor = pospivot + (n + 1) * (id + 1);
-        float factor;
+        float factor = AB[posfactor];
 
-        {
-            std::unique_lock<std::mutex> lock(mutexAB);
-            factor = AB[posfactor];
-        }
-
-        {
-            std::unique_lock<std::mutex> lock(mutexAB);
-            for (int j = pospivot; j < posfinfila; ++j) {
-                int posactualelim = j + (n + 1) * (id + 1);
-                AB[posactualelim] = -1 * factor * AB[j] + AB[posactualelim];
-            }
+        for (int j = pospivot; j < posfinfila; ++j) {
+            int posactualelim = j + (n + 1) * (id + 1);
+            AB[posactualelim] = -1 * factor * AB[j] + AB[posactualelim];
         }
     }
 }
@@ -68,60 +49,46 @@ void eliminacionAtras(std::vector<float>& AB, int n, int poscol) {
         int pospivot = (n + 2) * (n - 1 - poscol);
 
         if (poscol == 0) {
-            float pivot;
-            
-            {
-                std::unique_lock<std::mutex> lock(mutexAB);
-                pivot = AB[pospivot];
-                AB[pospivot] = AB[pospivot] / pivot;
-                AB[pospivot + 1] = AB[pospivot + 1] / pivot;
-            }
+            float pivot = AB[pospivot];
+            AB[pospivot] = AB[pospivot] / pivot;
+            AB[pospivot + 1] = AB[pospivot + 1] / pivot;
         }
 
-        float factor;
+        float factor = AB[pospivot - (n + 1) * (id + 1)];
         int posactualelim1 = pospivot - (n + 1) * (id + 1);
         int posactualelim2 = pospivot - (n + 1) * (id + 1) + 1 + poscol;
 
-        {
-            std::unique_lock<std::mutex> lock(mutexAB);
-            factor = AB[pospivot - (n + 1) * (id + 1)];
-        }
-
-        {
-            std::unique_lock<std::mutex> lock(mutexAB);
-            AB[posactualelim1] = -1 * factor * AB[pospivot] + AB[posactualelim1];
-            AB[posactualelim2] = -1 * factor * AB[pospivot + 1 + poscol] + AB[posactualelim2];
-        }
+        AB[posactualelim1] = -1 * factor * AB[pospivot] + AB[posactualelim1];
+        AB[posactualelim2] = -1 * factor * AB[pospivot + 1 + poscol] + AB[posactualelim2];
     }
 }
 
-
 void gaussJordanParallel(std::vector<float>& AB, int n, int numBlocks) {
-    std::vector<std::future<void>> futures;
+    std::vector<std::thread> threads;
 
     for (int i = 0; i < n - 1; ++i) {
         for (int j = 0; j < numBlocks; ++j) {
             int start = j * (n / numBlocks);
             int end = (j + 1) * (n / numBlocks);
 
-            futures.emplace_back(std::async(std::launch::async, [&AB, n, i, start, end] {
+            threads.emplace_back([&AB, n, i, start, end] {
                 for (int id = start; id < end; ++id) {
                     eliminacionAdelante(AB, n, i);
                 }
-            }));
+            });
 
-            futures.emplace_back(std::async(std::launch::async, [&AB, n, i, start, end] {
+            threads.emplace_back([&AB, n, i, start, end] {
                 for (int id = start; id < end; ++id) {
                     eliminacionAtras(AB, n, i);
                 }
-            }));
+            });
         }
 
-        for (auto &future : futures) {
-            future.wait();
+        for (auto &thread : threads) {
+            thread.join();
         }
 
-        futures.clear();
+        threads.clear();
     }
 }
 
@@ -135,7 +102,7 @@ void gaussJordanSecuencial(std::vector<float>& AB, int n) {
 }
 
 int main() {
-    const int n =300;
+    const int n = 300;
     srand(static_cast<unsigned>(time(nullptr)));
 
     std::vector<float> d_AB, d_AB_secuencial;
@@ -151,19 +118,21 @@ int main() {
     auto endTimeSecuencial = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> sequential_time = endTimeSecuencial - startTimeSecuencial;
 
-   // int blocksize = std::thread::hardware_concurrency();
-   // int blocksize = 
-    int blocksize = std::min(static_cast<int>(std::thread::hardware_concurrency()), 12);
+    int blocksize = 2;//::min(static_cast<int>(std::thread::hardware_concurrency()), 9);
     int numBlocks = ceil(n / static_cast<float>(blocksize));
-
-    std::cout << "Número de hilos utilizados: " << blocksize << std::endl;
 
     auto startTime = std::chrono::high_resolution_clock::now();
     gaussJordanParallel(d_AB, n, numBlocks);
     auto endTime = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> parallel_time = endTime - startTime;
-    
-    std::cout << "Sequential Time: " << sequential_time.count() * 1000 << " ms\n";
+
+   // std::cout << "\nMatriz Resultante después de Gauss-Jordan (paralelo):" << std::endl;
+   // imprimirMatriz(d_AB, n + 1, n);
+
+   //std::cout << "\nMatriz Resultante después de Gauss-Jordan (secuencial):" << std::endl;
+   // imprimirMatriz(d_AB_secuencial, n + 1, n);
+
+    std::cout << "\nSequential Time: " << sequential_time.count() * 1000 << " ms\n";
     std::cout << "Parallel Time: " << parallel_time.count() * 1000 << " ms\n";
     std::cout << "Acceleration: " << sequential_time / parallel_time << "\n";
     std::cout << "Efficiency: " << (sequential_time / parallel_time) / blocksize * 100 << "%\n";

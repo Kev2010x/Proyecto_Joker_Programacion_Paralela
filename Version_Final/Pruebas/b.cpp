@@ -62,6 +62,25 @@ void eliminacionAdelante(std::vector<float>& AB, int n, int poscol) {
         }
     }
 }
+void eliminacionAdelante_Secuencial(std::vector<float>& AB, int n, int poscol) {
+    for (int id = 0; id < n - 1 - poscol; ++id) {
+        int pospivot = (n + 2) * poscol;
+        int posfinfila = (n + 1) * (poscol + 1);
+        float piv;
+    
+            piv = AB[pospivot];
+            for (int j = pospivot; j < posfinfila; ++j) {
+                AB[j] /= piv;
+            } 
+        int posfactor = pospivot + (n + 1) * (id + 1);
+        float factor;
+            factor = AB[posfactor];
+            for (int j = pospivot; j < posfinfila; ++j) {
+                int posactualelim = j + (n + 1) * (id + 1);
+                AB[posactualelim] = -1 * factor * AB[j] + AB[posactualelim];
+            }
+    }
+}
 
 void eliminacionAtras(std::vector<float>& AB, int n, int poscol) {
     for (int id = 0; id < n - 1 - poscol; ++id) {
@@ -92,6 +111,31 @@ void eliminacionAtras(std::vector<float>& AB, int n, int poscol) {
             AB[posactualelim1] = -1 * factor * AB[pospivot] + AB[posactualelim1];
             AB[posactualelim2] = -1 * factor * AB[pospivot + 1 + poscol] + AB[posactualelim2];
         }
+    }
+}
+
+void eliminacionAtras_Secuencial(std::vector<float>& AB, int n, int poscol) {
+    for (int id = 0; id < n - 1 - poscol; ++id) {
+        int pospivot = (n + 2) * (n - 1 - poscol);
+
+        if (poscol == 0) {
+            float pivot;    
+            {
+                pivot = AB[pospivot];
+                AB[pospivot] = AB[pospivot] / pivot;
+                AB[pospivot + 1] = AB[pospivot + 1] / pivot;
+            }
+        }
+
+        float factor;
+        int posactualelim1 = pospivot - (n + 1) * (id + 1);
+        int posactualelim2 = pospivot - (n + 1) * (id + 1) + 1 + poscol;
+
+            factor = AB[pospivot - (n + 1) * (id + 1)];
+
+            AB[posactualelim1] = -1 * factor * AB[pospivot] + AB[posactualelim1];
+            AB[posactualelim2] = -1 * factor * AB[pospivot + 1 + poscol] + AB[posactualelim2];
+        
     }
 }
 
@@ -128,14 +172,14 @@ void gaussJordanParallel(std::vector<float>& AB, int n, int numBlocks) {
 void gaussJordanSecuencial(std::vector<float>& AB, int n) {
     for (int i = 0; i < n - 1; ++i) {
         for (int id = 0; id < n - 1 - i; ++id) {
-            eliminacionAdelante(AB, n, i);
-            eliminacionAtras(AB, n, i);
+            eliminacionAdelante_Secuencial(AB, n, i);
+            eliminacionAtras_Secuencial(AB, n, i);
         }
     }
 }
 
 int main() {
-    const int n =300;
+    const int n =100;
     srand(static_cast<unsigned>(time(nullptr)));
 
     std::vector<float> d_AB, d_AB_secuencial;
@@ -153,7 +197,7 @@ int main() {
 
    // int blocksize = std::thread::hardware_concurrency();
    // int blocksize = 
-    int blocksize = std::min(static_cast<int>(std::thread::hardware_concurrency()), 12);
+    int blocksize = std::min(static_cast<int>(std::thread::hardware_concurrency()), 6);
     int numBlocks = ceil(n / static_cast<float>(blocksize));
 
     std::cout << "Número de hilos utilizados: " << blocksize << std::endl;

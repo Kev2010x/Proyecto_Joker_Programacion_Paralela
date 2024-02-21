@@ -1,10 +1,10 @@
-#include <iostream>
 #include <cmath>
-#include <thread>
+#include <iostream>
 #include <vector>
 #include <cstdlib>
 #include <ctime>
 #include <chrono>
+#include <thread>
 #include <future>
 #include <mutex>
 #include <condition_variable>
@@ -30,8 +30,47 @@ void imprimirMatriz(const std::vector<float>& matriz, int filas, int columnas) {
     }
 }
 
-void eliminacionAdelante(std::vector<float>& AB, int n, int poscol) {
+void eliminacionAdelanteSecuencial(std::vector<float>& AB, int n, int poscol) {
     for (int id = 0; id < n - 1 - poscol; ++id) {
+        int pospivot = (n + 2) * poscol;
+        int posfinfila = (n + 1) * (poscol + 1);
+        float piv = AB[pospivot];
+
+        for (int j = pospivot; j < posfinfila; ++j) {
+            AB[j] /= piv;
+        }
+
+        int posfactor = pospivot + (n + 1) * (id + 1);
+        float factor = AB[posfactor];
+
+        for (int j = pospivot; j < posfinfila; ++j) {
+            int posactualelim = j + (n + 1) * (id + 1);
+            AB[posactualelim] = -1 * factor * AB[j] + AB[posactualelim];
+        }
+    }
+}
+
+void eliminacionAtrasSecuencial(std::vector<float>& AB, int n, int poscol) {
+    for (int id = 0; id < n - 1 - poscol; ++id) {
+        int pospivot = (n + 2) * (n - 1 - poscol);
+
+        if (poscol == 0) {
+            float pivot = AB[pospivot];
+            AB[pospivot] = AB[pospivot] / pivot;
+            AB[pospivot + 1] = AB[pospivot + 1] / pivot;
+        }
+
+        float factor = AB[pospivot - (n + 1) * (id + 1)];
+        int posactualelim1 = pospivot - (n + 1) * (id + 1);
+        int posactualelim2 = pospivot - (n + 1) * (id + 1) + 1 + poscol;
+
+        AB[posactualelim1] = -1 * factor * AB[pospivot] + AB[posactualelim1];
+        AB[posactualelim2] = -1 * factor * AB[pospivot + 1 + poscol] + AB[posactualelim2];
+    }
+}
+
+void eliminacionAdelanteParalela(std::vector<float>& AB, int n, int poscol, int start, int end) {
+    for (int id = start; id < end; ++id) {
         int pospivot = (n + 2) * poscol;
         int posfinfila = (n + 1) * (poscol + 1);
         float piv;
@@ -63,13 +102,13 @@ void eliminacionAdelante(std::vector<float>& AB, int n, int poscol) {
     }
 }
 
-void eliminacionAtras(std::vector<float>& AB, int n, int poscol) {
-    for (int id = 0; id < n - 1 - poscol; ++id) {
+void eliminacionAtrasParalela(std::vector<float>& AB, int n, int poscol, int start, int end) {
+    for (int id = start; id < end; ++id) {
         int pospivot = (n + 2) * (n - 1 - poscol);
 
         if (poscol == 0) {
             float pivot;
-            
+
             {
                 std::unique_lock<std::mutex> lock(mutexAB);
                 pivot = AB[pospivot];
@@ -95,6 +134,14 @@ void eliminacionAtras(std::vector<float>& AB, int n, int poscol) {
     }
 }
 
+void gaussJordanSecuencial(std::vector<float>& AB, int n) {
+    for (int i = 0; i < n - 1; ++i) {
+        for (int id = 0; id < n - 1 - i; ++id) {
+            eliminacionAdelanteSecuencial(AB, n, i);
+            eliminacionAtrasSecuencial(AB, n, i);
+        }
+    }
+}
 
 void gaussJordanParallel(std::vector<float>& AB, int n, int numBlocks) {
     std::vector<std::future<void>> futures;
@@ -105,15 +152,11 @@ void gaussJordanParallel(std::vector<float>& AB, int n, int numBlocks) {
             int end = (j + 1) * (n / numBlocks);
 
             futures.emplace_back(std::async(std::launch::async, [&AB, n, i, start, end] {
-                for (int id = start; id < end; ++id) {
-                    eliminacionAdelante(AB, n, i);
-                }
+                eliminacionAdelanteParalela(AB, n, i, start, end);
             }));
 
             futures.emplace_back(std::async(std::launch::async, [&AB, n, i, start, end] {
-                for (int id = start; id < end; ++id) {
-                    eliminacionAtras(AB, n, i);
-                }
+                eliminacionAtrasParalela(AB, n, i, start, end);
             }));
         }
 
@@ -125,17 +168,8 @@ void gaussJordanParallel(std::vector<float>& AB, int n, int numBlocks) {
     }
 }
 
-void gaussJordanSecuencial(std::vector<float>& AB, int n) {
-    for (int i = 0; i < n - 1; ++i) {
-        for (int id = 0; id < n - 1 - i; ++id) {
-            eliminacionAdelante(AB, n, i);
-            eliminacionAtras(AB, n, i);
-        }
-    }
-}
-
 int main() {
-    const int n =300;
+    const int n = 100;
     srand(static_cast<unsigned>(time(nullptr)));
 
     std::vector<float> d_AB, d_AB_secuencial;
@@ -151,18 +185,20 @@ int main() {
     auto endTimeSecuencial = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> sequential_time = endTimeSecuencial - startTimeSecuencial;
 
-   // int blocksize = std::thread::hardware_concurrency();
-   // int blocksize = 
+    std::cout << "Matriz Resultante Secuencial:" << std::endl;
+    imprimirMatriz(d_AB_secuencial, n + 1, n);
+
     int blocksize = std::min(static_cast<int>(std::thread::hardware_concurrency()), 12);
     int numBlocks = ceil(n / static_cast<float>(blocksize));
-
-    std::cout << "Número de hilos utilizados: " << blocksize << std::endl;
 
     auto startTime = std::chrono::high_resolution_clock::now();
     gaussJordanParallel(d_AB, n, numBlocks);
     auto endTime = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> parallel_time = endTime - startTime;
-    
+
+    std::cout << "Matriz Resultante Paralela:" << std::endl;
+    imprimirMatriz(d_AB, n + 1, n);
+
     std::cout << "Sequential Time: " << sequential_time.count() * 1000 << " ms\n";
     std::cout << "Parallel Time: " << parallel_time.count() * 1000 << " ms\n";
     std::cout << "Acceleration: " << sequential_time / parallel_time << "\n";
