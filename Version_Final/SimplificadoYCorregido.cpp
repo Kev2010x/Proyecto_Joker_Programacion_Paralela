@@ -118,7 +118,7 @@ int main() {
     auto endTimeSecuencial = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> sequential_time = endTimeSecuencial - startTimeSecuencial;
 
-    int blocksize = 2;//::min(static_cast<int>(std::thread::hardware_concurrency()), 9);
+    int blocksize = 8;//::min(static_cast<int>(std::thread::hardware_concurrency()), 9);
     int numBlocks = ceil(n / static_cast<float>(blocksize));
 
     auto startTime = std::chrono::high_resolution_clock::now();

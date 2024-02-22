@@ -7,4 +7,4 @@ https://www.canva.com/design/DAF7jxUkL-g/GkVa14nI5RwUIVeebd-cog/edit?utm_content
 
 
 El programa es el siguiente:
-![alt text](image.png)
+![alt text](image-1.png)
